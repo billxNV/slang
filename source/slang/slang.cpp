@@ -2367,7 +2367,8 @@ void FrontEndCompileRequest::parseTranslationUnit(
             translationUnit,
             tokens,
             getSink(),
-            languageScope);
+            languageScope,
+            m_isStandardLibraryCode);
 
         // Let's try dumping
 
