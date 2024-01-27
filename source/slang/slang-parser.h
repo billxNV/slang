@@ -15,7 +15,8 @@ namespace Slang
         TokenSpan const&                tokens,
         DiagnosticSink*                 sink,
         Scope*                          outerScope,
-        ContainerDecl*                  parentDecl);
+        ContainerDecl*                  parentDecl,
+        bool                            isStandardLibraryCode);
 
     Expr* parseTermFromSourceFile(
         ASTBuilder*                     astBuilder,

@@ -2430,7 +2430,8 @@ void FrontEndCompileRequest::parseTranslationUnit(
             tokens,
             getSink(),
             languageScope,
-            translationUnitSyntax);
+            translationUnitSyntax,
+            m_isStandardLibraryCode);
 
         // Let's try dumping
 
@@ -3438,7 +3439,8 @@ Linkage::IncludeResult Linkage::findAndIncludeFile(Module* module, TranslationUn
         tokens,
         sink,
         outerScope,
-        fileDecl);
+        fileDecl,
+        false);
 
     module->getModuleDecl()->addMember(fileDecl);
 
