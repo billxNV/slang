@@ -116,6 +116,9 @@ namespace Slang
         // a token that we expected, when we exit recovery.
         bool isRecovering = false;
 
+        bool isStandardLibraryCode = false;
+        bool isInFunction = false;
+
         void FillPosition(SyntaxNode * node)
         {
             node->loc = tokenReader.peekLoc();
@@ -150,11 +153,13 @@ namespace Slang
             ASTBuilder* inAstBuilder,
             TokenSpan const& _tokens,
             DiagnosticSink * sink,
-            Scope*           outerScope)
+            Scope*           outerScope,
+            bool             isStandardLibraryCode)
             : tokenReader(_tokens)
             , astBuilder(inAstBuilder)
             , sink(sink)
             , outerScope(outerScope)
+            , isStandardLibraryCode(isStandardLibraryCode)
         {}
         Parser(const Parser & other) = default;
 
@@ -1576,7 +1581,9 @@ namespace Slang
             }
 
             _parseOptSemantics(parser, decl);
+            parser->isInFunction = true;
             decl->body = parseOptBody(parser);
+            parser->isInFunction = false;
             if (auto block = as<BlockStmt>(decl->body))
             {
                 decl->closingSourceLoc = block->closingSourceLoc;
@@ -1654,6 +1661,39 @@ namespace Slang
         _addModifiers(decl, declaratorInfo.semantics);
 
         decl->initExpr = declaratorInfo.initializer;
+
+        //@ Version 0.
+        // if(!declaratorInfo.initializer)
+        //    decl->initExpr = parser->astBuilder->create<InitializerListExpr>();
+
+        //@ Version 1. Only add 0init inside functions.
+        // if(parser->isInFunction && !declaratorInfo.initializer)
+        //    decl->initExpr = parser->astBuilder->create<InitializerListExpr>();
+
+        //@ Version 2. Try to skip generics with statically unknown sizes. But failed finally.
+        //@ Guess the reason is that `vector<T, N>` is further passed as another type parameter `T1`.
+        // bool unknownSize = false;
+        // if(auto genericAppExpr = as<GenericAppExpr>(decl->type.exp))
+        // {
+        //    String name = as<DeclRefExpr>(genericAppExpr->functionExpr)->name->text;
+        //    if(name == "Array" || name == "vector" || name == "matrix")
+        //        if(genericAppExpr->arguments.getCount() > 1 && !as<IntegerLiteralExpr>(genericAppExpr->arguments[1]))
+        //            unknownSize = true;
+        // }
+        // if(parser->isInFunction && !declaratorInfo.initializer && !unknownSize)
+        //    decl->initExpr = parser->astBuilder->create<InitializerListExpr>();
+
+        //@ Version 3. Give up detecting generics with statically unknown sizes, but skip the whole core libraries.
+        // if(!parser->isStandardLibraryCode && parser->isInFunction && !declaratorInfo.initializer)
+        //     decl->initExpr = parser->astBuilder->create<InitializerListExpr>();
+
+        //@ Version 4. Skip `RayQuery<0> rayQuery;`. slangc works well for that but glslangValidator doesn't.
+        bool isRayQuery = false;
+        if(auto genericAppExpr = as<GenericAppExpr>(decl->type.exp))
+            if(as<DeclRefExpr>(genericAppExpr->functionExpr)->name->text == "RayQuery")
+                isRayQuery = true;
+        if(!parser->isStandardLibraryCode && parser->isInFunction && !declaratorInfo.initializer && !isRayQuery)
+            decl->initExpr = parser->astBuilder->create<InitializerListExpr>();
     }
 
     typedef unsigned int DeclaratorParseOptions;
@@ -6136,7 +6176,7 @@ namespace Slang
         NamePool*                       namePool,
         SourceLanguage                  sourceLanguage)
     {
-        Parser parser(astBuilder, tokens, sink, outerScope);
+        Parser parser(astBuilder, tokens, sink, outerScope, false);
         parser.currentScope = outerScope;
         parser.namePool = namePool;
         parser.sourceLanguage = sourceLanguage;
@@ -6149,9 +6189,10 @@ namespace Slang
         TranslationUnitRequest*         translationUnit,
         TokenSpan const&                tokens,
         DiagnosticSink*                 sink,
-        Scope*                          outerScope)
+        Scope*                          outerScope,
+        bool                            isStandardLibraryCode)
     {
-        Parser parser(astBuilder, tokens, sink, outerScope);
+        Parser parser(astBuilder, tokens, sink, outerScope, isStandardLibraryCode);
         parser.namePool = translationUnit->getNamePool();
         parser.sourceLanguage = translationUnit->sourceLanguage;
 

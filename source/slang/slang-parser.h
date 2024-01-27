@@ -14,7 +14,8 @@ namespace Slang
         TranslationUnitRequest*         translationUnit,
         TokenSpan const&                tokens,
         DiagnosticSink*                 sink,
-        Scope*                          outerScope);
+        Scope*                          outerScope,
+        bool                            isStandardLibraryCode);
 
     Expr* parseTermFromSourceFile(
         ASTBuilder*                     astBuilder,
